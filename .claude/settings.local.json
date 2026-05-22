@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite *)",
+      "WebSearch",
+      "Bash(pnpm add *)",
+      "WebFetch(domain:registry.inspira-ui.com)",
+      "Bash(npx shadcn-vue@latest add -y \"https://registry.inspira-ui.com/aurora-background.json\")",
+      "Bash(npx vue-tsc *)"
+    ]
+  }
+}
