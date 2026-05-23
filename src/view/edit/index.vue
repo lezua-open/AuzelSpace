@@ -30,8 +30,8 @@ const currentContent = computed({
 const saved = ref(false)
 let savedTimer: ReturnType<typeof setTimeout> | null = null
 
-function handleSave() {
-  store.saveToStorage()
+async function handleSave() {
+  await store.saveToServer()
   saved.value = true
   if (savedTimer) clearTimeout(savedTimer)
   savedTimer = setTimeout(() => { saved.value = false }, 1500)
@@ -140,7 +140,17 @@ function onDividerMouseUp() {
   document.body.style.userSelect = ''
 }
 
+function onKeyDown(e: KeyboardEvent) {
+  const mod = e.ctrlKey || e.metaKey
+  if (mod && e.key === 's') {
+    e.preventDefault()
+    handleSave()
+  }
+}
+
 onMounted(() => {
+  document.addEventListener('keydown', onKeyDown)
+
   const timer = setInterval(() => {
     const editorScroll = editorWrapperRef.value?.querySelector('.cm-scroller') as HTMLElement | null
     const previewBody = previewWrapperRef.value?.querySelector('.markdown-body') as HTMLElement | null
@@ -158,6 +168,7 @@ onMounted(() => {
 onUnmounted(() => {
   syncCleanup.forEach((fn) => fn())
   if (savedTimer) clearTimeout(savedTimer)
+  document.removeEventListener('keydown', onKeyDown)
   document.removeEventListener('mousemove', onDividerMouseMove)
   document.removeEventListener('mouseup', onDividerMouseUp)
 })
