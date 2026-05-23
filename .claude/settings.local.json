@@ -6,7 +6,17 @@
       "Bash(pnpm add *)",
       "WebFetch(domain:registry.inspira-ui.com)",
       "Bash(npx shadcn-vue@latest add -y \"https://registry.inspira-ui.com/aurora-background.json\")",
-      "Bash(npx vue-tsc *)"
+      "Bash(npx vue-tsc *)",
+      "WebFetch(domain:inspira-ui.com)",
+      "Bash(npm view *)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm dev *)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(git reset *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git config *)"
     ]
   }
 }

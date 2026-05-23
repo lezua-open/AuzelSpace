@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { AuroraBackground } from '@/components/ui/aurora-background'
 import { PatternBackground } from '@/components/ui/pattern-background'
-import { TextHoverEffect } from '@/components/ui/text-hover-effect'
 import { LinkPreview } from '@/components/ui/link-preview'
 import { BoxReveal } from '@/components/ui/box-reveal'
 
@@ -29,11 +28,7 @@ import { BoxReveal } from '@/components/ui/box-reveal'
           </p>
         </BoxReveal>
       </div>
-      <!-- <TextHoverEffect class="w-[90%] lg:min-h-64" text="Auzel" /> -->
     </PatternBackground>
-
-
-
 
   </AuroraBackground>
 </template>
