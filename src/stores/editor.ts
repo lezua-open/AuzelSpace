@@ -1,9 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { sampleFiles, type MarkdownFile, type Version } from '@/view/edit/samples'
-
-const FILES_KEY = 'auzel-files'
-const VERSIONS_KEY = 'auzel-versions'
+import * as api from '@/lib/api'
 
 export const useEditorStore = defineStore('editor', () => {
   const files = ref<MarkdownFile[]>([])
@@ -24,38 +22,46 @@ export const useEditorStore = defineStore('editor', () => {
     activeFileVersions.value.find(v => v.published),
   )
 
-  // --- Persistence ---
-  function loadFromStorage() {
+  // --- Load from server ---
+  async function loadFromServer() {
     try {
-      const storedFiles = localStorage.getItem(FILES_KEY)
-      const storedVersions = localStorage.getItem(VERSIONS_KEY)
+      const [serverFiles, serverVersions] = await Promise.all([
+        api.fetchFiles(),
+        // Fetch versions for all files
+        api.fetchFiles().then(fs =>
+          Promise.all(fs.map(f => api.fetchVersions(f.id))),
+        ).then(vss => vss.flat()),
+      ])
 
-      if (storedFiles) {
-        const parsed = JSON.parse(storedFiles) as MarkdownFile[]
-        files.value = parsed.map(f => ({
-          ...f,
-          id: f.id || crypto.randomUUID(),
-        }))
+      if (serverFiles.length > 0) {
+        files.value = serverFiles
+        versions.value = serverVersions
       } else {
-        files.value = [...sampleFiles]
+        // Seed with sample files if server is empty
+        const seeded: MarkdownFile[] = []
+        for (const sample of sampleFiles) {
+          const created = await api.createFile(sample.name, sample.content)
+          seeded.push(created)
+        }
+        files.value = seeded
+        versions.value = []
       }
-
-      if (storedVersions) {
-        versions.value = JSON.parse(storedVersions)
-      }
-    } catch {
+    } catch (e) {
+      console.warn('Failed to load from server, falling back to samples:', e)
       files.value = [...sampleFiles]
       versions.value = []
     }
   }
 
-  function saveToStorage() {
+  // --- Save current file content to server ---
+  async function saveToServer() {
+    const file = activeFile.value
+    if (!file) return
     try {
-      localStorage.setItem(FILES_KEY, JSON.stringify(files.value))
-      localStorage.setItem(VERSIONS_KEY, JSON.stringify(versions.value))
+      await api.updateFile(file.id, { content: file.content })
       dirty.value = false
     } catch (e) {
-      console.warn('localStorage save failed:', e)
+      console.error('Save failed:', e)
     }
   }
 
@@ -64,28 +70,33 @@ export const useEditorStore = defineStore('editor', () => {
     activeIndex.value = index
   }
 
-  function addFile(file: MarkdownFile) {
-    files.value.push({
-      ...file,
-      id: file.id || crypto.randomUUID(),
-    })
-    activeIndex.value = files.value.length - 1
-    saveToStorage()
+  async function addFile(file: MarkdownFile) {
+    try {
+      const created = await api.createFile(file.name, file.content)
+      files.value.push(created)
+      activeIndex.value = files.value.length - 1
+    } catch (e) {
+      console.error('Failed to create file:', e)
+    }
   }
 
-  function removeFile(index: number) {
+  async function removeFile(index: number) {
     if (files.value.length <= 1) return
     const file = files.value[index]
     if (!file) return
-    const fileId = file.id
-    files.value.splice(index, 1)
-    versions.value = versions.value.filter(v => v.fileId !== fileId)
-    if (activeIndex.value >= files.value.length) {
-      activeIndex.value = files.value.length - 1
-    } else if (activeIndex.value === index) {
-      activeIndex.value = Math.max(0, index - 1)
+    try {
+      await api.deleteFile(file.id)
+      const fileId = file.id
+      files.value.splice(index, 1)
+      versions.value = versions.value.filter(v => v.fileId !== fileId)
+      if (activeIndex.value >= files.value.length) {
+        activeIndex.value = files.value.length - 1
+      } else if (activeIndex.value === index) {
+        activeIndex.value = Math.max(0, index - 1)
+      }
+    } catch (e) {
+      console.error('Failed to delete file:', e)
     }
-    saveToStorage()
   }
 
   function updateContent(content: string) {
@@ -97,22 +108,16 @@ export const useEditorStore = defineStore('editor', () => {
   }
 
   // --- Version actions ---
-  function createVersion(name: string, note: string, published: boolean) {
+  async function createVersion(name: string, note: string, published: boolean) {
     const file = activeFile.value
     if (!file) return
-
-    const version: Version = {
-      id: crypto.randomUUID(),
-      fileId: file.id,
-      name,
-      note,
-      content: file.content,
-      published,
-      createdAt: Date.now(),
+    try {
+      const version = await api.createVersion(file.id, name, note, published)
+      versions.value.push(version)
+      return version
+    } catch (e) {
+      console.error('Failed to create version:', e)
     }
-    versions.value.push(version)
-    saveToStorage()
-    return version
   }
 
   function restoreVersion(versionId: string) {
@@ -124,16 +129,18 @@ export const useEditorStore = defineStore('editor', () => {
     }
   }
 
-  function deleteVersion(versionId: string) {
-    const index = versions.value.findIndex(v => v.id === versionId)
-    if (index !== -1) {
-      versions.value.splice(index, 1)
-      saveToStorage()
+  async function deleteVersion(versionId: string) {
+    try {
+      await api.deleteVersion(versionId)
+      const index = versions.value.findIndex(v => v.id === versionId)
+      if (index !== -1) versions.value.splice(index, 1)
+    } catch (e) {
+      console.error('Failed to delete version:', e)
     }
   }
 
   // --- Init ---
-  loadFromStorage()
+  loadFromServer()
 
   return {
     files,
@@ -147,7 +154,7 @@ export const useEditorStore = defineStore('editor', () => {
     addFile,
     removeFile,
     updateContent,
-    saveToStorage,
+    saveToServer,
     createVersion,
     restoreVersion,
     deleteVersion,
