@@ -76,12 +76,25 @@ export function useDesktop(containerRef?: Ref<HTMLElement | null>) {
 
   function snapToGrid(id: string, pixelX: number, pixelY: number) {
     const grid = pixelToGrid(pixelX, pixelY)
+    const targetCol = Math.min(grid.col, cols.value - 1)
+    const targetRow = Math.min(Math.max(0, grid.row), rows.value - 1)
+
     const item = items.value.find((a) => a.id === id)
-    if (item) {
-      item.col = Math.min(grid.col, cols.value - 1)
-      item.row = Math.min(Math.max(0, grid.row), rows.value - 1)
-      savePositions()
+    if (!item) return
+
+    // 如果目标格已被其他图标占据，则交换位置
+    const occupant = items.value.find(
+      (a) => a.id !== id && a.col === targetCol && a.row === targetRow,
+    )
+
+    if (occupant) {
+      occupant.col = item.col
+      occupant.row = item.row
     }
+
+    item.col = targetCol
+    item.row = targetRow
+    savePositions()
   }
 
   function getItemPixelPos(id: string) {

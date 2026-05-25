@@ -24,15 +24,11 @@ function toggleTheme(e: MouseEvent) {
 
 <template>
   <div class="border-t border-sidebar-border px-3 py-3">
-    <button
-      class="theme-toggle"
-      :class="{ dark: isDark }"
-      :title="isDark ? '切换亮色' : '切换暗色'"
-      @click="toggleTheme"
-    >
+    <button class="theme-toggle" :class="{ dark: isDark }" :title="isDark ? '切换亮色' : '切换暗色'" @click="toggleTheme">
       <span class="track">
         <span class="thumb">
-          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round">
             <circle cx="12" cy="12" r="5" />
             <line x1="12" y1="1" x2="12" y2="3" />
             <line x1="12" y1="21" x2="12" y2="23" />
@@ -87,14 +83,15 @@ function toggleTheme(e: MouseEvent) {
   height: 20px;
   border-radius: 50%;
   background: white;
-  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-              background 0.55s ease,
-              box-shadow 0.3s ease;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 0.5s ease,
+    box-shadow 0.5s ease;
   z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 1px 2px oklch(0 0 0 / 0.08);
+  view-transition-name: theme-toggle-thumb;
 }
 
 .dark .thumb {
@@ -104,12 +101,13 @@ function toggleTheme(e: MouseEvent) {
 }
 
 /* ── Icons ── */
-.sun, .moon {
+.sun,
+.moon {
   position: absolute;
   width: 12px;
   height: 12px;
-  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-              opacity 0.35s ease;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.35s ease;
 }
 
 .sun {
@@ -146,6 +144,7 @@ function toggleTheme(e: MouseEvent) {
 /* ── Active ── */
 .theme-toggle:active .thumb {
   width: 24px;
+  transition: width 0.15s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.5s ease;
 }
 
 .dark .theme-toggle:active .thumb {

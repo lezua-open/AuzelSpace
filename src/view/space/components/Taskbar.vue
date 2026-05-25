@@ -11,8 +11,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   activate: [windowId: string]
-  'toggle-fullscreen': []
+  'dock-action': [actionId: string]
 }>()
+
+const actions = [
+  { id: 'toggle-fullscreen' as const, icon: Maximize2, title: '全屏' },
+]
 
 const time = ref('')
 let timer: ReturnType<typeof setInterval>
@@ -51,21 +55,10 @@ function getGroupedWindows() {
   <div class="dock-wrapper">
     <div class="dock">
       <div class="dock-items">
-        <div
-          v-for="group in getGroupedWindows()"
-          :key="group.appId"
-          class="dock-group"
-        >
-          <button
-            class="dock-item"
-            :class="{ active: group.isActive }"
-            :title="group.app?.name ?? group.appId"
-            @click="emit('activate', group.topWindow.id)"
-          >
-            <span
-              class="dock-dot"
-              :style="{ background: group.app?.color ?? '#888' }"
-            />
+        <div v-for="group in getGroupedWindows()" :key="group.appId" class="dock-group">
+          <button class="dock-item" :class="{ active: group.isActive }" :title="group.app?.name ?? group.appId"
+            @click="emit('activate', group.topWindow.id)">
+            <span class="dock-dot" :style="{ background: group.app?.color ?? '#888' }" />
           </button>
           <!-- 多窗口指示器 -->
           <span v-if="group.windows.length > 1" class="dock-multi" />
@@ -74,8 +67,9 @@ function getGroupedWindows() {
 
       <div class="dock-separator" />
 
-      <button class="dock-item dock-action" title="全屏" @click="emit('toggle-fullscreen')">
-        <Maximize2 class="dock-action-icon" />
+      <button v-for="action in actions" :key="action.id" class="dock-item dock-action" :title="action.title"
+        @click="emit('dock-action', action.id)">
+        <component :is="action.icon" class="dock-action-icon" />
       </button>
     </div>
   </div>
@@ -100,14 +94,14 @@ function getGroupedWindows() {
   backdrop-filter: blur(30px) saturate(1.8);
   border: 1px solid oklch(1 0 0 / 0.3);
   box-shadow: 0 4px 24px oklch(0 0 0 / 0.08),
-              0 1px 4px oklch(0 0 0 / 0.04);
+    0 1px 4px oklch(0 0 0 / 0.04);
 }
 
 .dark .dock {
   background: oklch(0.18 0 0 / 0.45);
   border-color: oklch(1 0 0 / 0.1);
   box-shadow: 0 4px 24px oklch(0 0 0 / 0.2),
-              0 1px 4px oklch(0 0 0 / 0.1);
+    0 1px 4px oklch(0 0 0 / 0.1);
 }
 
 .dock-items {

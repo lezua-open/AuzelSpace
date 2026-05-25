@@ -11,15 +11,16 @@ const props = defineProps<{
   x: number
   y: number
   cellSize: number
+  selected: boolean
 }>()
 
 const emit = defineEmits<{
   dragEnd: [id: string, x: number, y: number]
   open: [id: string]
   delete: [id: string]
+  select: [id: string]
 }>()
 
-const selected = ref(false)
 const dragging = ref(false)
 const bouncing = ref(false)
 const contextMenu = ref<{ x: number; y: number } | null>(null)
@@ -43,7 +44,7 @@ const menuItems: MenuItem[] = [
 
 function onPointerDown(e: PointerEvent) {
   if (e.button !== 0) return
-  selected.value = true
+  emit('select', props.id)
   contextMenu.value = null
   startX = e.clientX
   startY = e.clientY
@@ -92,7 +93,7 @@ function onDblClick() {
 function onContextMenu(e: MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
-  selected.value = true
+  emit('select', props.id)
   contextMenu.value = { x: e.clientX, y: e.clientY }
 }
 
@@ -110,7 +111,7 @@ function onMenuSelect(menuId: string) {
     :style="{ left: `${posX}px`, top: `${posY}px`, width: `${cellSize}px` }"
     @pointerdown="onPointerDown"
     @dblclick="onDblClick"
-    @click.stop="selected = true"
+    @click.stop="emit('select', id)"
     @contextmenu="onContextMenu"
   >
     <div class="icon-wrapper">

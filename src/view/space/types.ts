@@ -42,6 +42,15 @@ export interface DesktopAPI {
   maximizeSelf: () => void
 }
 
+/** 桌面小组件实例 */
+export interface WidgetInstance {
+  id: string
+  widgetType: string // 内容组件标识，如 "clock"
+  x: number
+  y: number
+  zIndex: number
+}
+
 /** 桌面图标项（用于渲染 DesktopIcon） */
 export interface DesktopItem {
   id: string
