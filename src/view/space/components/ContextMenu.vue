@@ -25,16 +25,6 @@ const menuRef = ref<HTMLElement | null>(null)
 const adjustedX = ref(0)
 const adjustedY = ref(0)
 
-onMounted(async () => {
-  await nextTick()
-  if (!menuRef.value) return
-  const rect = menuRef.value.getBoundingClientRect()
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  adjustedX.value = rect.right > vw ? vw - rect.width - 8 : rect.left
-  adjustedY.value = rect.bottom > vh ? vh - rect.height - 8 : rect.top
-})
-
 function onSelect(id: string) {
   emit('select', id)
   emit('close')
@@ -50,9 +40,17 @@ function onEscape(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('pointerdown', onClickOutside)
   document.addEventListener('keydown', onEscape)
+
+  await nextTick()
+  if (!menuRef.value) return
+  const rect = menuRef.value.getBoundingClientRect()
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  adjustedX.value = rect.right > vw ? vw - rect.width - 8 : rect.left
+  adjustedY.value = rect.bottom > vh ? vh - rect.height - 8 : rect.top
 })
 
 onUnmounted(() => {

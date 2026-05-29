@@ -1,48 +1,39 @@
 <script setup lang="ts">
-import { ref, computed, type Component } from 'vue'
-import { FolderOpen, Pencil, Trash2 } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import { Folder, FolderOpen, Pencil, Trash2 } from 'lucide-vue-next'
 import ContextMenu, { type MenuItem } from './ContextMenu.vue'
 import { useInlineRename } from '../composables/useInlineRename'
 
 const props = defineProps<{
-  id: string
+  folderId: string
   name: string
-  icon: Component
-  color: string
   x: number
   y: number
   cellSize: number
-  selected: boolean
+  hovered: boolean
 }>()
 
 const emit = defineEmits<{
   dragEnd: [id: string, x: number, y: number]
-  dropInFolder: [itemId: string, folderId: string]
   open: [id: string]
   delete: [id: string]
   rename: [id: string, name: string]
-  select: [id: string]
-  hoverFolder: [folderId: string | null]
 }>()
 
 const dragging = ref(false)
-const bouncing = ref(false)
 const contextMenu = ref<{ x: number; y: number } | null>(null)
-const dragOffsetX = ref(0)
-const dragOffsetY = ref(0)
 const dragX = ref(0)
 const dragY = ref(0)
+const dragOffsetX = ref(0)
+const dragOffsetY = ref(0)
 let startX = 0
 let startY = 0
 let moved = false
 
-// 拖拽时悬停的文件夹 ID
-let hoverFolderId: string | null = null
-
 // 重命名
 const {
-  renamingId,
-  inputRef: renameInputRef,
+  renamingId: editing,
+  inputRef: editInputRef,
   startRename,
   finishRename: _finishRename,
   onKeydown: _onRenameKeydown,
@@ -58,8 +49,8 @@ function onRenameKeydown(e: KeyboardEvent) {
   _onRenameKeydown(e, () => props.name)
 }
 
-const posX = computed(() => dragging.value ? dragX.value : props.x)
-const posY = computed(() => dragging.value ? dragY.value : props.y)
+const posX = computed(() => (dragging.value ? dragX.value : props.x))
+const posY = computed(() => (dragging.value ? dragY.value : props.y))
 
 const menuItems: MenuItem[] = [
   { id: 'open', label: '打开', icon: FolderOpen },
@@ -68,27 +59,16 @@ const menuItems: MenuItem[] = [
   { id: 'delete', label: '删除', icon: Trash2, danger: true },
 ]
 
-/** 从 event 坐标查找最近的数据文件夹元素 */
-function findFolderAtPoint(x: number, y: number): string | null {
-  // 隐藏自身避免检测到自己
-  const els = document.elementsFromPoint(x, y)
-  for (const el of els) {
-    const folderEl = el instanceof HTMLElement && el.closest?.('[data-folder-id]') as HTMLElement | null
-    if (folderEl) return folderEl.dataset.folderId ?? null
-  }
-  return null
-}
+// ── Drag ──
 
 function onPointerDown(e: PointerEvent) {
-  if (e.button !== 0 || renamingId.value) return
-  emit('select', props.id)
+  if (e.button !== 0 || editing.value) return
   contextMenu.value = null
   startX = e.clientX
   startY = e.clientY
   dragOffsetX.value = e.clientX - props.x
   dragOffsetY.value = e.clientY - props.y
   moved = false
-  hoverFolderId = null
 
   document.addEventListener('pointermove', onPointerMove)
   document.addEventListener('pointerup', onPointerUp)
@@ -106,13 +86,6 @@ function onPointerMove(e: PointerEvent) {
 
   dragX.value = e.clientX - dragOffsetX.value
   dragY.value = e.clientY - dragOffsetY.value
-
-  // 检测是否悬停在文件夹上
-  const fid = findFolderAtPoint(e.clientX, e.clientY)
-  if (fid !== hoverFolderId) {
-    hoverFolderId = fid
-    emit('hoverFolder', fid)
-  }
 }
 
 function onPointerUp() {
@@ -121,37 +94,31 @@ function onPointerUp() {
 
   if (dragging.value) {
     dragging.value = false
-    if (hoverFolderId) {
-      emit('dropInFolder', props.id, hoverFolderId)
-      emit('hoverFolder', null)
-    } else {
-      emit('dragEnd', props.id, dragX.value, dragY.value)
-    }
+    emit('dragEnd', props.folderId, dragX.value, dragY.value)
   }
 }
 
+// ── Double-click ──
+
 function onDblClick() {
-  if (!moved && !renamingId.value) {
-    bouncing.value = true
-    setTimeout(() => {
-      bouncing.value = false
-      emit('open', props.id)
-    }, 350)
+  if (!moved && !editing.value) {
+    emit('open', props.folderId)
   }
 }
+
+// ── Context menu ──
 
 function onContextMenu(e: MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
-  emit('select', props.id)
   contextMenu.value = { x: e.clientX, y: e.clientY }
 }
 
 function onMenuSelect(menuId: string) {
   contextMenu.value = null
-  if (menuId === 'open') emit('open', props.id)
-  if (menuId === 'rename') startRename(props.id)
-  if (menuId === 'delete') emit('delete', props.id)
+  if (menuId === 'open') emit('open', props.folderId)
+  if (menuId === 'rename') startRename(props.folderId)
+  if (menuId === 'delete') emit('delete', props.folderId)
 }
 
 // ── Inline rename（逻辑已提取到 useInlineRename composable）──
@@ -159,29 +126,31 @@ function onMenuSelect(menuId: string) {
 
 <template>
   <div
-    class="desktop-icon"
-    :class="{ selected, dragging, bouncing }"
+    class="folder-icon"
+    :class="{ dragging, hovered }"
+    :data-folder-id="folderId"
     :style="{ left: `${posX}px`, top: `${posY}px`, width: `${cellSize}px` }"
     @pointerdown="onPointerDown"
     @dblclick="onDblClick"
-    @click.stop="emit('select', id)"
     @contextmenu="onContextMenu"
   >
     <div class="icon-wrapper">
-      <div class="icon-box" :style="{ background: color }">
+      <div class="icon-box">
         <div class="icon-gloss" />
-        <component :is="icon" class="icon-svg" />
+        <Folder v-if="!hovered" class="icon-svg" />
+        <FolderOpen v-else class="icon-svg icon-svg-open" />
       </div>
     </div>
 
+    <!-- 可编辑标签 -->
     <span
-      v-if="!renamingId"
+      v-if="!editing"
       class="icon-label"
-      @dblclick.stop="startRename(props.id)"
+      @dblclick.stop="startRename(props.folderId)"
     >{{ name }}</span>
     <span
       v-else
-      ref="renameInputRef"
+      ref="editInputRef"
       class="icon-label icon-label-edit"
       contenteditable="true"
       spellcheck="false"
@@ -202,7 +171,7 @@ function onMenuSelect(menuId: string) {
 </template>
 
 <style scoped>
-.desktop-icon {
+.folder-icon {
   position: absolute;
   display: flex;
   flex-direction: column;
@@ -217,43 +186,31 @@ function onMenuSelect(menuId: string) {
   z-index: 1;
 }
 
-.desktop-icon:hover {
+.folder-icon:hover {
   background: oklch(1 0 0 / 0.08);
 }
 
-.dark .desktop-icon:hover {
+.dark .folder-icon:hover {
   background: oklch(1 0 0 / 0.05);
 }
 
-.desktop-icon.selected {
-  background: oklch(1 0 0 / 0.1);
-}
-
-.dark .desktop-icon.selected {
-  background: oklch(1 0 0 / 0.06);
-}
-
-.desktop-icon.dragging {
+.folder-icon.dragging {
   opacity: 0.8;
   z-index: 100;
 }
 
-/* ── Bounce animation ── */
-.desktop-icon.bouncing .icon-wrapper {
-  animation: icon-bounce 0.35s cubic-bezier(0.36, 1.4, 0.5, 0.8);
+/* 拖放目标高亮 */
+.folder-icon.hovered {
+  background: oklch(0.55 0.15 240 / 0.15);
 }
 
-@keyframes icon-bounce {
-  0% { transform: scale(1); }
-  30% { transform: scale(0.82); }
-  60% { transform: scale(1.08); }
-  100% { transform: scale(1); }
+.folder-icon.hovered .icon-box {
+  transform: scale(1.08);
 }
 
 /* ── Icon wrapper ── */
 .icon-wrapper {
   position: relative;
-  will-change: transform;
 }
 
 .icon-box {
@@ -265,20 +222,22 @@ function onMenuSelect(menuId: string) {
   justify-content: center;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 2px 6px oklch(0 0 0 / 0.1),
-              0 8px 24px oklch(0 0 0 / 0.08),
-              inset 0 1px 0 oklch(1 0 0 / 0.25);
+  background: oklch(0.52 0.14 250);
+  box-shadow:
+    0 2px 6px oklch(0 0 0 / 0.1),
+    0 8px 24px oklch(0 0 0 / 0.08),
+    inset 0 1px 0 oklch(1 0 0 / 0.25);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.desktop-icon:hover .icon-box {
+.folder-icon:hover .icon-box {
   transform: translateY(-2px);
-  box-shadow: 0 4px 10px oklch(0 0 0 / 0.12),
-              0 12px 32px oklch(0 0 0 / 0.1),
-              inset 0 1px 0 oklch(1 0 0 / 0.3);
+  box-shadow:
+    0 4px 10px oklch(0 0 0 / 0.12),
+    0 12px 32px oklch(0 0 0 / 0.1),
+    inset 0 1px 0 oklch(1 0 0 / 0.3);
 }
 
-/* ── iOS gloss overlay ── */
 .icon-gloss {
   position: absolute;
   inset: 0;
@@ -294,13 +253,18 @@ function onMenuSelect(menuId: string) {
 }
 
 .icon-svg {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   color: white;
-  stroke-width: 2;
+  stroke-width: 1.8;
   position: relative;
   z-index: 2;
   filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.15));
+  transition: transform 0.2s ease;
+}
+
+.icon-svg-open {
+  transform: scale(1.08);
 }
 
 /* ── Label ── */

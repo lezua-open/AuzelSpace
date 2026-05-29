@@ -1,18 +1,20 @@
 import { ref, computed, onMounted, onUnmounted, type Ref } from 'vue'
-import type { DesktopItem } from '../types'
+import type { DesktopItem, DesktopFolder } from '../types'
 
 const CELL_SIZE = 100
 const GAP = 8
 const PADDING = 24
 const STRIDE = CELL_SIZE + GAP
 const POSITION_KEY = 'auzel-desktop-grid-positions'
+const FOLDER_KEY = 'auzel-desktop-folders'
+const RENAME_KEY = 'auzel-desktop-renamed-names'
 
 /**
- * 桌面网格布局 composable — 管理图标位置和网格系统。
- * 窗口管理已移至 windowManager store。
+ * 桌面网格布局 composable — 管理图标位置、网格系统和文件夹。
  */
 export function useDesktop(containerRef?: Ref<HTMLElement | null>) {
   const items = ref<DesktopItem[]>([])
+  const folders = ref<DesktopFolder[]>([])
   const cols = ref(6)
   const rows = ref(4)
 
@@ -49,12 +51,126 @@ export function useDesktop(containerRef?: Ref<HTMLElement | null>) {
     localStorage.setItem(POSITION_KEY, JSON.stringify(positions))
   }
 
-  /** 初始化桌面图标 — 由外部传入基础数据，自动分配网格位置 */
+  // ── 文件夹持久化 ──
+
+  function loadFolders(): DesktopFolder[] {
+    try {
+      const raw = localStorage.getItem(FOLDER_KEY)
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  }
+
+  function saveFolders() {
+    localStorage.setItem(FOLDER_KEY, JSON.stringify(folders.value))
+  }
+
+  // ── 重命名持久化 ──
+
+  function loadRenamedNames(): Record<string, string> {
+    try {
+      const raw = localStorage.getItem(RENAME_KEY)
+      return raw ? JSON.parse(raw) : {}
+    } catch {
+      return {}
+    }
+  }
+
+  function saveRenamedNames(names: Record<string, string>) {
+    localStorage.setItem(RENAME_KEY, JSON.stringify(names))
+  }
+
+  /** 重命名桌面图标并持久化 */
+  function renameItem(id: string, name: string) {
+    const item = items.value.find((x) => x.id === id)
+    if (!item) return
+    item.name = name
+    const names = loadRenamedNames()
+    names[id] = name
+    saveRenamedNames(names)
+  }
+
+  // ── 文件夹操作 ──
+
+  function createFolder(col: number, row: number): DesktopFolder {
+    const folder: DesktopFolder = {
+      id: `folder-${Date.now()}`,
+      name: '新建文件夹',
+      col,
+      row,
+    }
+    folders.value.push(folder)
+    saveFolders()
+    return folder
+  }
+
+  function deleteFolder(id: string) {
+    // 文件夹内的图标回归桌面
+    for (const item of items.value) {
+      if (item.folderId === id) {
+        item.folderId = undefined
+      }
+    }
+    folders.value = folders.value.filter((f) => f.id !== id)
+    savePositions()
+    saveFolders()
+  }
+
+  function renameFolder(id: string, name: string) {
+    const f = folders.value.find((x) => x.id === id)
+    if (f) {
+      f.name = name
+      saveFolders()
+    }
+  }
+
+  function addToFolder(folderId: string, itemId: string) {
+    const item = items.value.find((x) => x.id === itemId)
+    if (item) {
+      item.folderId = folderId
+      savePositions()
+    }
+  }
+
+  function removeFromFolder(itemId: string) {
+    const item = items.value.find((x) => x.id === itemId)
+    if (item) {
+      item.folderId = undefined
+      savePositions()
+    }
+  }
+
+  function getFolder(id: string): DesktopFolder | undefined {
+    return folders.value.find((f) => f.id === id)
+  }
+
+  function getFolderItems(folderId: string): DesktopItem[] {
+    return items.value.filter((x) => x.folderId === folderId)
+  }
+
+  /** 桌面可见图标 — 排除已放入文件夹的 */
+  function visibleItems(): DesktopItem[] {
+    return items.value.filter((x) => !x.folderId)
+  }
+
+  /** 查找指定网格位置是否有文件夹 */
+  function getFolderAt(col: number, row: number): DesktopFolder | undefined {
+    return folders.value.find((f) => f.col === col && f.row === row)
+  }
+
+  // ── 图标管理 ──
+
   function initItems(baseItems: Omit<DesktopItem, 'col' | 'row'>[]) {
     recalcGrid()
     const saved = loadPositions()
+    const existingFolders = loadFolders()
+    const renamedNames = loadRenamedNames()
+    folders.value = existingFolders
+
     items.value = baseItems.map((item, i) => ({
       ...item,
+      name: renamedNames[item.id] ?? item.name,
       col: saved[item.id]?.col ?? i % cols.value,
       row: saved[item.id]?.row ?? Math.floor(i / cols.value),
     }))
@@ -84,7 +200,7 @@ export function useDesktop(containerRef?: Ref<HTMLElement | null>) {
 
     // 如果目标格已被其他图标占据，则交换位置
     const occupant = items.value.find(
-      (a) => a.id !== id && a.col === targetCol && a.row === targetRow,
+      (a) => a.id !== id && !a.folderId && a.col === targetCol && a.row === targetRow,
     )
 
     if (occupant) {
@@ -109,6 +225,10 @@ export function useDesktop(containerRef?: Ref<HTMLElement | null>) {
       item.col = Math.min(item.col, cols.value - 1)
       item.row = Math.min(item.row, rows.value - 1)
     }
+    for (const folder of folders.value) {
+      folder.col = Math.min(folder.col, cols.value - 1)
+      folder.row = Math.min(folder.row, rows.value - 1)
+    }
   }
 
   onMounted(() => {
@@ -121,10 +241,24 @@ export function useDesktop(containerRef?: Ref<HTMLElement | null>) {
 
   return {
     items,
+    folders,
     gridConfig,
     gridToPixel,
+    pixelToGrid,
     snapToGrid,
     getItemPixelPos,
     initItems,
+    savePositions,
+    renameItem,
+    // 文件夹
+    createFolder,
+    deleteFolder,
+    renameFolder,
+    addToFolder,
+    removeFromFolder,
+    getFolder,
+    getFolderItems,
+    getFolderAt,
+    visibleItems,
   }
 }

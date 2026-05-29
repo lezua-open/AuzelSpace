@@ -59,4 +59,13 @@ export interface DesktopItem {
   color: string
   col: number
   row: number
+  folderId?: string // 非空时图标在文件夹内，桌面上不渲染
+}
+
+/** 桌面文件夹 */
+export interface DesktopFolder {
+  id: string
+  name: string
+  col: number
+  row: number
 }
